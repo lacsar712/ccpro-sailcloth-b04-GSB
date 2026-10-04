@@ -58,3 +58,23 @@ class DipRun(models.Model):
 
     def __str__(self):
         return f"Dip@{self.roll_id} {self.started_at}"
+
+
+class NoteLengthRule(models.Model):
+    """浸渍备注字数规则（全站单行配置，pk 固定为 1）。"""
+
+    min_chars = models.PositiveIntegerField(default=1)
+    max_chars = models.PositiveIntegerField(default=200)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "备注字数规则"
+        verbose_name_plural = "备注字数规则"
+
+    def __str__(self):
+        return f"备注字数 {self.min_chars}–{self.max_chars}"
+
+    @classmethod
+    def load(cls) -> "NoteLengthRule":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

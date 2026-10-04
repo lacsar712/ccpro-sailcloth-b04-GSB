@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue'
 import HomeView from '../views/HomeView.vue'
 import RollsView from '../views/RollsView.vue'
 import DipsView from '../views/DipsView.vue'
+import NoteLengthView from '../views/NoteLengthView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -12,6 +13,7 @@ const router = createRouter({
     { path: '/', name: 'rack', component: HomeView },
     { path: '/rolls', name: 'rolls', component: RollsView, meta: { secondary: true } },
     { path: '/dips', name: 'dips', component: DipsView, meta: { secondary: true } },
+    { path: '/note-length', name: 'note-length', component: NoteLengthView },
   ],
 })
 

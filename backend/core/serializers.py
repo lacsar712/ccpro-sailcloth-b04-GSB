@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
-from .models import ClothRoll, DipRun, Loft
-from .rules import can_mark_roll_cured
+from .models import ClothRoll, DipRun, Loft, NoteLengthRule
+from .rules import can_mark_roll_cured, check_dip_notes_length
 
 
 class LoftSerializer(serializers.ModelSerializer):
@@ -93,3 +93,35 @@ class DipRunSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = ("id", "rollCode", "loftName", "created_at")
+
+    def validate_notes(self, value):
+        ok, msg = check_dip_notes_length(value)
+        if not ok:
+            raise serializers.ValidationError(msg)
+        return value
+
+
+class NoteLengthRuleSerializer(serializers.ModelSerializer):
+    minChars = serializers.IntegerField(
+        source="min_chars",
+        min_value=1,
+        error_messages={"min_value": "最短字数至少为 1"},
+    )
+    maxChars = serializers.IntegerField(
+        source="max_chars",
+        min_value=1,
+        error_messages={"min_value": "最长字数至少为 1"},
+    )
+
+    class Meta:
+        model = NoteLengthRule
+        fields = ("minChars", "maxChars", "updated_at")
+        read_only_fields = ("updated_at",)
+
+    def validate(self, attrs):
+        instance = self.instance
+        min_chars = attrs.get("min_chars", getattr(instance, "min_chars", 1))
+        max_chars = attrs.get("max_chars", getattr(instance, "max_chars", 1))
+        if max_chars < min_chars:
+            raise serializers.ValidationError({"maxChars": "最长字数不能小于最短字数"})
+        return attrs

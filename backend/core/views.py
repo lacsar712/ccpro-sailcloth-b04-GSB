@@ -3,9 +3,16 @@ from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import ClothRoll, DipRun, Loft
-from .serializers import ClothRollSerializer, DipRunSerializer, LoftSerializer
+from .models import ClothRoll, DipRun, Loft, NoteLengthRule
+from .permissions import IsAdminRole
+from .serializers import (
+    ClothRollSerializer,
+    DipRunSerializer,
+    LoftSerializer,
+    NoteLengthRuleSerializer,
+)
 
 
 class LoftViewSet(viewsets.ModelViewSet):
@@ -37,6 +44,32 @@ class DipRunViewSet(viewsets.ModelViewSet):
         if roll_id:
             qs = qs.filter(roll_id=roll_id)
         return qs
+
+
+class NoteLengthRuleView(APIView):
+    """备注字数规则：登录用户均可读取，仅管理员可修改。"""
+
+    def get_permissions(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return [IsAdminRole()]
+        return [IsAuthenticated()]
+
+    def get(self, request):
+        return Response(NoteLengthRuleSerializer(NoteLengthRule.load()).data)
+
+    def put(self, request):
+        return self._save(request, partial=False)
+
+    def patch(self, request):
+        return self._save(request, partial=True)
+
+    def _save(self, request, partial):
+        serializer = NoteLengthRuleSerializer(
+            NoteLengthRule.load(), data=request.data, partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
 @api_view(["GET"])

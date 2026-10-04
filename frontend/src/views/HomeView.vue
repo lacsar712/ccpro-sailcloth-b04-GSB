@@ -1,10 +1,12 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../api'
+import { errMsg } from '../errors'
 
 const lofts = ref([])
 const rolls = ref([])
 const dips = ref([])
+const noteRule = ref(null)
 const error = ref('')
 const panelError = ref('')
 const selectedId = ref(null)
@@ -44,14 +46,16 @@ const recentFeed = computed(() => dips.value.slice(0, 12))
 async function load() {
   error.value = ''
   try {
-    const [l, r, d] = await Promise.all([
+    const [l, r, d, n] = await Promise.all([
       api.get('/lofts/'),
       api.get('/rolls/'),
       api.get('/dips/'),
+      api.get('/note-length-rule/'),
     ])
     lofts.value = l.data.results || l.data
     rolls.value = r.data.results || r.data
     dips.value = d.data.results || d.data
+    noteRule.value = n.data
   } catch {
     error.value = '晾晒架加载失败'
   }
@@ -79,11 +83,10 @@ async function setStatus(status) {
     await api.patch(`/rolls/${selected.value.id}/`, { status })
     await load()
   } catch (e) {
-    const data = e.response?.data
-    panelError.value =
-      data?.status?.[0] ||
-      data?.detail ||
+    panelError.value = errMsg(
+      e.response?.data,
       '状态更新失败（标「已固化」需最近浸渍固化时长 ≥ 12 小时）'
+    )
   } finally {
     panelBusy.value = false
   }
@@ -116,10 +119,7 @@ async function logDip() {
     dipForm.startedAt = localNow()
     await load()
   } catch (e) {
-    panelError.value =
-      e.response?.data?.detail ||
-      JSON.stringify(e.response?.data) ||
-      '登记浸渍失败'
+    panelError.value = errMsg(e.response?.data, '登记浸渍失败')
   } finally {
     panelBusy.value = false
   }
@@ -251,7 +251,7 @@ onMounted(load)
         <label>固化时长 h（可空）
           <input v-model="dipForm.cureHours" type="number" step="0.1" />
         </label>
-        <label>备注
+        <label>备注<template v-if="noteRule">（留空或 {{ noteRule.minChars }}–{{ noteRule.maxChars }} 字）</template>
           <input v-model="dipForm.notes" />
         </label>
         <button class="btn" type="submit" :disabled="panelBusy">写入浸渍记录</button>

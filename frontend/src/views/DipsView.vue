@@ -1,9 +1,11 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import api from '../api'
+import { errMsg } from '../errors'
 
 const dips = ref([])
 const rolls = ref([])
+const noteRule = ref(null)
 const error = ref('')
 const form = reactive({
   rollId: null,
@@ -22,9 +24,14 @@ function localNow() {
 async function load() {
   error.value = ''
   try {
-    const [d, r] = await Promise.all([api.get('/dips/'), api.get('/rolls/')])
+    const [d, r, n] = await Promise.all([
+      api.get('/dips/'),
+      api.get('/rolls/'),
+      api.get('/note-length-rule/'),
+    ])
     dips.value = d.data.results || d.data
     rolls.value = r.data.results || r.data
+    noteRule.value = n.data
     if (!form.rollId && rolls.value.length) form.rollId = rolls.value[0].id
     if (!form.startedAt) form.startedAt = localNow()
   } catch {
@@ -48,7 +55,7 @@ async function create() {
     form.startedAt = localNow()
     await load()
   } catch (e) {
-    error.value = e.response?.data?.detail || JSON.stringify(e.response?.data) || '创建失败'
+    error.value = errMsg(e.response?.data, '创建失败')
   }
 }
 
@@ -76,7 +83,7 @@ onMounted(load)
       <label>固化时长 h（可空）
         <input v-model="form.cureHours" type="number" step="0.1" />
       </label>
-      <label>备注
+      <label>备注<template v-if="noteRule">（留空或 {{ noteRule.minChars }}–{{ noteRule.maxChars }} 字）</template>
         <input v-model="form.notes" />
       </label>
       <button class="btn" type="submit">登记</button>
