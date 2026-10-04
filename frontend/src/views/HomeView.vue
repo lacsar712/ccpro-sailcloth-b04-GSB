@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../api'
+import { checkNoteLength, extractNoteError } from '../notes'
+import { useNotePolicyStore } from '../stores/notePolicy'
 
 const lofts = ref([])
 const rolls = ref([])
@@ -9,6 +11,7 @@ const error = ref('')
 const panelError = ref('')
 const selectedId = ref(null)
 const panelBusy = ref(false)
+const notePolicy = useNotePolicyStore()
 
 const statusLabel = { raw: '原布', dipping: '浸渍中', cured: '已固化' }
 
@@ -17,6 +20,11 @@ const dipForm = reactive({
   resinPct: 28,
   cureHours: '',
   notes: '',
+})
+
+const dipNoteState = computed(() => {
+  if (notePolicy.minChars == null) return { ok: true, count: 0, empty: true }
+  return checkNoteLength(dipForm.notes, notePolicy.minChars, notePolicy.maxChars)
 })
 
 function localNow() {
@@ -48,6 +56,7 @@ async function load() {
       api.get('/lofts/'),
       api.get('/rolls/'),
       api.get('/dips/'),
+      notePolicy.fetchPolicy(true).catch(() => null),
     ])
     lofts.value = l.data.results || l.data
     rolls.value = r.data.results || r.data
@@ -92,6 +101,17 @@ async function setStatus(status) {
 async function logDip() {
   if (!selected.value) return
   panelError.value = ''
+  // 与浸渍台账同一套上下限：前端先挡一道，避免发注定被拒的请求；
+  // 最终以接口结论为准（接口拒绝时整笔不落库）。
+  const noteCheck = checkNoteLength(
+    dipForm.notes,
+    notePolicy.minChars ?? 1,
+    notePolicy.maxChars ?? 200
+  )
+  if (!noteCheck.ok) {
+    panelError.value = noteCheck.message
+    return
+  }
   panelBusy.value = true
   try {
     await api.post('/dips/', {
@@ -116,7 +136,10 @@ async function logDip() {
     dipForm.startedAt = localNow()
     await load()
   } catch (e) {
+    // 后端拒绝（如备注越界）时整笔未入库：保留已填备注并原样提示，
+    // 绝不出现「界面说太短、库里却有该备注」。
     panelError.value =
+      extractNoteError(e.response?.data) ||
       e.response?.data?.detail ||
       JSON.stringify(e.response?.data) ||
       '登记浸渍失败'
@@ -253,8 +276,17 @@ onMounted(load)
         </label>
         <label>备注
           <input v-model="dipForm.notes" />
+          <small v-if="notePolicy.minChars != null" class="note-hint" :class="{ 'note-bad': !dipNoteState.ok }">
+            <template v-if="dipNoteState.empty">
+              留空豁免；填写则需 {{ notePolicy.minChars }}–{{ notePolicy.maxChars }} 个汉字
+            </template>
+            <template v-else-if="dipNoteState.ok">
+              {{ dipNoteState.count }} 个汉字，符合 {{ notePolicy.minChars }}–{{ notePolicy.maxChars }} 区间
+            </template>
+            <template v-else>{{ dipNoteState.message }}</template>
+          </small>
         </label>
-        <button class="btn" type="submit" :disabled="panelBusy">写入浸渍记录</button>
+        <button class="btn" type="submit" :disabled="panelBusy || !dipNoteState.ok">写入浸渍记录</button>
       </form>
 
       <div class="drawer-history">

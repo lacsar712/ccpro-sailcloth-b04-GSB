@@ -171,6 +171,9 @@ th, td {
 th { background: var(--canvas-deep); color: var(--navy); }
 .error { color: var(--danger); }
 .ok { color: var(--ok); }
+.success { color: var(--ok); }
+.note-hint { color: var(--muted); font-weight: 400; font-size: 0.82rem; }
+.note-hint.note-bad { color: var(--danger); }
 .badge {
   display: inline-block;
   padding: 2px 8px;

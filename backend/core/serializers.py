@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
-from .models import ClothRoll, DipRun, Loft
-from .rules import can_mark_roll_cured
+from .models import ClothRoll, DipRun, Loft, NoteLengthPolicy
+from .rules import can_mark_roll_cured, validate_dip_note
 
 
 class LoftSerializer(serializers.ModelSerializer):
@@ -93,3 +93,33 @@ class DipRunSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = ("id", "rollCode", "loftName", "created_at")
+
+    def validate(self, attrs):
+        # 面板登记与浸渍台账保存走同一入口：备注越界即在保存前整笔拒绝，
+        # serializer 不通过 -> 不会进入 create()，库里绝不会先出现该备注。
+        notes = attrs.get("notes")
+        if notes is None and self.instance is not None:
+            notes = self.instance.notes
+        ok, msg = validate_dip_note(notes or "")
+        if not ok:
+            raise serializers.ValidationError({"notes": msg})
+        return attrs
+
+
+class NoteLengthPolicySerializer(serializers.ModelSerializer):
+    minChars = serializers.IntegerField(source="min_chars", min_value=1)
+    maxChars = serializers.IntegerField(source="max_chars", min_value=1)
+
+    class Meta:
+        model = NoteLengthPolicy
+        fields = ("id", "minChars", "maxChars", "updated_at")
+        read_only_fields = ("id", "updated_at")
+
+    def validate(self, attrs):
+        min_chars = attrs.get("min_chars", getattr(self.instance, "min_chars", 1))
+        max_chars = attrs.get("max_chars", getattr(self.instance, "max_chars", 200))
+        if min_chars > max_chars:
+            raise serializers.ValidationError(
+                {"maxChars": "最长汉字数不能小于最短汉字数"}
+            )
+        return attrs

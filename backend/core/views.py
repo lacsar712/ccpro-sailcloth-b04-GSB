@@ -3,9 +3,17 @@ from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import ClothRoll, DipRun, Loft
-from .serializers import ClothRollSerializer, DipRunSerializer, LoftSerializer
+from accounts.models import User
+
+from .models import ClothRoll, DipRun, Loft, NoteLengthPolicy
+from .serializers import (
+    ClothRollSerializer,
+    DipRunSerializer,
+    LoftSerializer,
+    NoteLengthPolicySerializer,
+)
 
 
 class LoftViewSet(viewsets.ModelViewSet):
@@ -52,3 +60,39 @@ def dashboard_stats(request):
         "dipRunCount": DipRun.objects.count(),
     }
     return Response(data)
+
+
+class IsAdminUserRole(IsAuthenticated):
+    """role == admin 的用户可写；普通操作工只读。"""
+
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return True
+        return request.user.role == User.ROLE_ADMIN
+
+
+class NoteLengthPolicyView(APIView):
+    """浸渍备注字数上下限（单例）。登录可读，仅管理员可改。"""
+
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request):
+        policy = NoteLengthPolicy.load()
+        return Response(NoteLengthPolicySerializer(policy).data)
+
+    def put(self, request):
+        return self._update(request, partial=False)
+
+    def patch(self, request):
+        return self._update(request, partial=True)
+
+    def _update(self, request, partial):
+        policy = NoteLengthPolicy.load()
+        serializer = NoteLengthPolicySerializer(
+            policy, data=request.data, partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

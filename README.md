@@ -46,9 +46,10 @@ docker compose up --build
 
 - **登录** → 进入主工作面
 - **`/` 帆布间晾晒架（主）**：按帆布间挂布卷芯片（挂签状态 `raw` / `dipping` / `cured`）；点击打开右侧面板登记 `DipRun`、切换固化状态；架下为浸渍流水次要信息流
+- **`/note-policy` 备注字数**：管理员设定浸渍备注的最短/最长汉字数（最短 ≥ 1）；晾晒架面板登记浸渍与 `/dips` 台账保存共用这对上下限，越界整笔拒绝（序列化阶段拦截、绝不先入库），空备注豁免；改卷态/标固化不看字数
 - **`/rolls` · `/dips`（次要台账）**：保留列表/表单 CRUD，侧栏降级为「台账」入口，非主路径
 
-API 契约不变（JWT、`/api/lofts|rolls|dips|dashboard/`）。
+API 契约（JWT、`/api/lofts|rolls|dips|dashboard/`）；新增 `GET/PUT/PATCH /api/note-policy/`（登录可读、仅管理员可写，全局单例）。
 
 ## 配色
 

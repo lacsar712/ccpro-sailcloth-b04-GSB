@@ -58,3 +58,31 @@ class DipRun(models.Model):
 
     def __str__(self):
         return f"Dip@{self.roll_id} {self.started_at}"
+
+
+class NoteLengthPolicy(models.Model):
+    """浸渍备注汉字数上下限（全局单例）。空备注豁免，仅约束浸渍备注。"""
+
+    SINGLETON_ID = 1
+
+    min_chars = models.PositiveIntegerField(default=1)
+    max_chars = models.PositiveIntegerField(default=200)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"浸渍备注 {self.min_chars}-{self.max_chars} 字"
+
+    @classmethod
+    def load(cls) -> "NoteLengthPolicy":
+        obj, _ = cls.objects.get_or_create(
+            pk=cls.SINGLETON_ID,
+            defaults={"id": cls.SINGLETON_ID},
+        )
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = self.SINGLETON_ID
+        super().save(*args, **kwargs)

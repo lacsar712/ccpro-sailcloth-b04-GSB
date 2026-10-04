@@ -1,16 +1,24 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../api'
+import { checkNoteLength, extractNoteError } from '../notes'
+import { useNotePolicyStore } from '../stores/notePolicy'
 
 const dips = ref([])
 const rolls = ref([])
 const error = ref('')
+const notePolicy = useNotePolicyStore()
 const form = reactive({
   rollId: null,
   startedAt: '',
   resinPct: 28,
   cureHours: '',
   notes: '',
+})
+
+const noteState = computed(() => {
+  if (notePolicy.minChars == null) return { ok: true, count: 0, empty: true }
+  return checkNoteLength(form.notes, notePolicy.minChars, notePolicy.maxChars)
 })
 
 function localNow() {
@@ -22,7 +30,11 @@ function localNow() {
 async function load() {
   error.value = ''
   try {
-    const [d, r] = await Promise.all([api.get('/dips/'), api.get('/rolls/')])
+    const [d, r] = await Promise.all([
+      api.get('/dips/'),
+      api.get('/rolls/'),
+      notePolicy.fetchPolicy(true).catch(() => null),
+    ])
     dips.value = d.data.results || d.data
     rolls.value = r.data.results || r.data
     if (!form.rollId && rolls.value.length) form.rollId = rolls.value[0].id
@@ -34,6 +46,16 @@ async function load() {
 
 async function create() {
   error.value = ''
+  // 与晾晒架面板同一套上下限、同一结论。
+  const noteCheck = checkNoteLength(
+    form.notes,
+    notePolicy.minChars ?? 1,
+    notePolicy.maxChars ?? 200
+  )
+  if (!noteCheck.ok) {
+    error.value = noteCheck.message
+    return
+  }
   try {
     const payload = {
       rollId: form.rollId,
@@ -48,7 +70,12 @@ async function create() {
     form.startedAt = localNow()
     await load()
   } catch (e) {
-    error.value = e.response?.data?.detail || JSON.stringify(e.response?.data) || '创建失败'
+    // 后端拒绝即整笔未入库，原样展示后端结论。
+    error.value =
+      extractNoteError(e.response?.data) ||
+      e.response?.data?.detail ||
+      JSON.stringify(e.response?.data) ||
+      '创建失败'
   }
 }
 
@@ -78,8 +105,17 @@ onMounted(load)
       </label>
       <label>备注
         <input v-model="form.notes" />
+        <small v-if="notePolicy.minChars != null" class="note-hint" :class="{ 'note-bad': !noteState.ok }">
+          <template v-if="noteState.empty">
+            留空豁免；填写则需 {{ notePolicy.minChars }}–{{ notePolicy.maxChars }} 个汉字
+          </template>
+          <template v-else-if="noteState.ok">
+            {{ noteState.count }} 个汉字，符合区间
+          </template>
+          <template v-else>{{ noteState.message }}</template>
+        </small>
       </label>
-      <button class="btn" type="submit">登记</button>
+      <button class="btn" type="submit" :disabled="!noteState.ok">登记</button>
     </form>
 
     <table>
